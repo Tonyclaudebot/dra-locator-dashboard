@@ -5,8 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DRA The Locator — Client Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
   :root {
     --bg: #0a0907;
@@ -31,7 +33,9 @@
     --radius: 16px;
     --radius-sm: 10px;
   }
+
   * { box-sizing: border-box; margin: 0; padding: 0; }
+
   body {
     background: var(--bg);
     color: var(--text);
@@ -39,191 +43,458 @@
     min-height: 100vh;
     overflow-x: hidden;
   }
+
+  /* Subtle background texture */
   body::before {
     content: '';
-    position: fixed; inset: 0;
+    position: fixed;
+    inset: 0;
     background:
       radial-gradient(ellipse 80% 60% at 10% 0%, rgba(196,146,42,0.07) 0%, transparent 60%),
       radial-gradient(ellipse 60% 40% at 90% 100%, rgba(107,76,42,0.08) 0%, transparent 50%);
-    pointer-events: none; z-index: 0;
+    pointer-events: none;
+    z-index: 0;
   }
 
-  /* LOADER */
+  /* ── LOADER ── */
   #loader {
     position: fixed; inset: 0; background: var(--bg);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     z-index: 9999;
   }
-  .loader-logo { font-family: 'Cormorant Garamond', serif; font-size: 3.2rem; font-weight: 700; color: var(--gold); letter-spacing: 0.05em; opacity: 0; }
-  .loader-sub { font-size: 0.8rem; color: var(--text3); letter-spacing: 0.3em; text-transform: uppercase; margin-top: 8px; opacity: 0; }
-  .loader-bar-wrap { width: 160px; height: 2px; background: rgba(196,146,42,0.15); border-radius: 2px; margin-top: 32px; overflow: hidden; }
-  .loader-bar { height: 100%; width: 0%; background: var(--gold); border-radius: 2px; }
+  .loader-logo {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 3.2rem; font-weight: 700;
+    color: var(--gold); letter-spacing: 0.05em;
+    opacity: 0;
+  }
+  .loader-sub {
+    font-size: 0.8rem; font-weight: 400; color: var(--text3);
+    letter-spacing: 0.3em; text-transform: uppercase; margin-top: 8px;
+    opacity: 0;
+  }
+  .loader-bar-wrap {
+    width: 160px; height: 2px; background: rgba(196,146,42,0.15);
+    border-radius: 2px; margin-top: 32px; overflow: hidden;
+  }
+  .loader-bar {
+    height: 100%; width: 0%; background: var(--gold);
+    border-radius: 2px;
+  }
 
+  /* ── MAIN LAYOUT ── */
   #app { position: relative; z-index: 1; opacity: 0; }
 
-  /* SIDEBAR */
   .sidebar {
-    position: fixed; left: 0; top: 0; bottom: 0; width: 240px;
-    background: var(--bg2); border-right: 1px solid var(--border);
-    display: flex; flex-direction: column; z-index: 100;
+    position: fixed; left: 0; top: 0; bottom: 0;
+    width: 240px; background: var(--bg2);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    padding: 0;
+    z-index: 100;
   }
-  .sidebar-header { padding: 28px 24px 20px; border-bottom: 1px solid var(--border); }
-  .avatar-wrap { width: 64px; height: 64px; border-radius: 50%; border: 2px solid var(--gold3); overflow: hidden; margin-bottom: 14px; }
-  .avatar-initials { width: 100%; height: 100%; background: var(--card2); display: flex; align-items: center; justify-content: center; font-family: 'Cormorant Garamond', serif; font-size: 1.4rem; font-weight: 700; color: var(--gold); }
-  .sidebar-name { font-family: 'Cormorant Garamond', serif; font-size: 1.1rem; font-weight: 700; color: var(--text); line-height: 1.2; }
-  .sidebar-title { font-size: 0.7rem; color: var(--text3); text-transform: uppercase; letter-spacing: 0.18em; margin-top: 3px; }
-  .sidebar-nav { flex: 1; padding: 20px 12px; display: flex; flex-direction: column; gap: 4px; }
-  .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--radius-sm); cursor: pointer; transition: all 0.2s; font-size: 0.85rem; color: var(--text2); border: 1px solid transparent; }
-  .nav-item:hover { background: var(--card); color: var(--text); }
-  .nav-item.active { background: rgba(196,146,42,0.1); color: var(--gold2); border-color: rgba(196,146,42,0.2); }
-  .nav-icon { font-size: 1rem; width: 18px; text-align: center; }
-  .sidebar-footer { padding: 16px 24px; border-top: 1px solid var(--border); font-size: 0.7rem; color: var(--text3); }
 
-  /* MAIN */
-  .main { margin-left: 240px; padding: 32px 36px; min-height: 100vh; }
-  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 36px; }
-  .page-title { font-family: 'Cormorant Garamond', serif; font-size: 2rem; font-weight: 700; color: var(--text); }
+  .sidebar-header {
+    padding: 28px 24px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .avatar-wrap {
+    width: 64px; height: 64px; border-radius: 50%;
+    border: 2px solid var(--gold3);
+    overflow: hidden; margin-bottom: 14px;
+    position: relative;
+  }
+  .avatar-wrap img {
+    width: 100%; height: 100%; object-fit: cover;
+  }
+  .avatar-initials {
+    width: 100%; height: 100%;
+    background: var(--card2);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.4rem; font-weight: 700; color: var(--gold);
+  }
+
+  .sidebar-name {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.1rem; font-weight: 700; color: var(--text);
+    line-height: 1.2;
+  }
+  .sidebar-title {
+    font-size: 0.7rem; color: var(--text3);
+    text-transform: uppercase; letter-spacing: 0.18em;
+    margin-top: 3px;
+  }
+
+  .sidebar-nav {
+    flex: 1; padding: 20px 12px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; border-radius: var(--radius-sm);
+    cursor: pointer; transition: all 0.2s;
+    font-size: 0.85rem; font-weight: 400; color: var(--text2);
+    border: 1px solid transparent;
+  }
+  .nav-item:hover { background: var(--card); color: var(--text); }
+  .nav-item.active {
+    background: rgba(196,146,42,0.1);
+    color: var(--gold2);
+    border-color: rgba(196,146,42,0.2);
+  }
+  .nav-icon { font-size: 1rem; width: 18px; text-align: center; }
+
+  .sidebar-footer {
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    font-size: 0.7rem; color: var(--text3);
+    letter-spacing: 0.05em;
+  }
+
+  /* ── MAIN CONTENT ── */
+  .main {
+    margin-left: 240px;
+    padding: 32px 36px;
+    min-height: 100vh;
+  }
+
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 36px;
+  }
+
+  .page-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2rem; font-weight: 700; color: var(--text);
+  }
   .page-sub { font-size: 0.8rem; color: var(--text3); margin-top: 2px; }
+
   .topbar-right { display: flex; align-items: center; gap: 12px; }
 
-  .btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 18px; border-radius: var(--radius-sm); font-size: 0.82rem; font-weight: 500; cursor: pointer; transition: all 0.2s; border: 1px solid var(--border2); background: var(--card); color: var(--text2); }
-  .btn:hover { background: var(--card2); color: var(--text); }
-  .btn-gold { background: var(--gold); color: var(--bg); border-color: var(--gold); font-weight: 600; }
-  .btn-gold:hover { background: var(--gold2); border-color: var(--gold2); }
-  .btn-green { background: rgba(76,175,122,0.15); color: var(--green); border-color: rgba(76,175,122,0.3); }
-  .btn-green:hover { background: rgba(76,175,122,0.25); }
-
-  /* STATS */
-  .stats-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-bottom: 32px; }
-  .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 22px; position: relative; overflow: hidden; }
-  .stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, var(--gold3), var(--gold), transparent); }
-  .stat-label { font-size: 0.7rem; color: var(--text3); text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 10px; }
-  .stat-value { font-family: 'Cormorant Garamond', serif; font-size: 2.4rem; font-weight: 700; color: var(--gold2); line-height: 1; }
-  .stat-change { font-size: 0.72rem; margin-top: 6px; color: var(--green); }
-  .stat-icon { position: absolute; right: 18px; top: 18px; font-size: 1.4rem; opacity: 0.4; }
-
-  /* GOOGLE SHEETS CONNECTION BANNER */
-  .sheets-banner {
-    background: var(--card);
+  .btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 9px 18px; border-radius: var(--radius-sm);
+    font-size: 0.82rem; font-weight: 500;
+    cursor: pointer; transition: all 0.2s;
     border: 1px solid var(--border2);
-    border-radius: var(--radius);
-    padding: 18px 22px;
-    margin-bottom: 24px;
-    display: flex; align-items: center; gap: 16px;
-    flex-wrap: wrap;
+    background: var(--card); color: var(--text2);
   }
-  .sheets-banner.connected { border-color: rgba(76,175,122,0.4); background: rgba(76,175,122,0.05); }
-  .sheets-status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--text3); flex-shrink: 0; }
-  .sheets-status-dot.live { background: var(--green); box-shadow: 0 0 8px rgba(76,175,122,0.5); animation: pulse 2s infinite; }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
-  .sheets-info { flex: 1; }
-  .sheets-info-title { font-size: 0.85rem; font-weight: 600; color: var(--text); }
-  .sheets-info-sub { font-size: 0.75rem; color: var(--text3); margin-top: 2px; }
-  .sheets-actions { display: flex; gap: 8px; align-items: center; }
+  .btn:hover { background: var(--card2); color: var(--text); }
+  .btn-gold {
+    background: var(--gold); color: var(--bg);
+    border-color: var(--gold);
+    font-weight: 600;
+  }
+  .btn-gold:hover { background: var(--gold2); border-color: var(--gold2); }
 
-  /* FILTER BAR */
-  .filter-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
-  .search-wrap { position: relative; flex: 1; min-width: 220px; }
-  .search-wrap input { width: 100%; padding: 10px 14px 10px 38px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-size: 0.85rem; font-family: 'DM Sans', sans-serif; outline: none; transition: border-color 0.2s; }
+  /* ── STATS ROW ── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px; margin-bottom: 32px;
+  }
+
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 22px;
+    position: relative; overflow: hidden;
+  }
+  .stat-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--gold3), var(--gold), transparent);
+  }
+  .stat-label {
+    font-size: 0.7rem; color: var(--text3);
+    text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 10px;
+  }
+  .stat-value {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2.4rem; font-weight: 700; color: var(--gold2);
+    line-height: 1;
+  }
+  .stat-change {
+    font-size: 0.72rem; margin-top: 6px;
+    color: var(--green);
+  }
+  .stat-icon {
+    position: absolute; right: 18px; top: 18px;
+    font-size: 1.4rem; color: var(--text3); opacity: 0.4;
+  }
+
+  /* ── SEARCH & FILTER BAR ── */
+  .filter-bar {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 24px; flex-wrap: wrap;
+  }
+
+  .search-wrap {
+    position: relative; flex: 1; min-width: 220px;
+  }
+  .search-wrap input {
+    width: 100%; padding: 10px 14px 10px 38px;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); color: var(--text);
+    font-size: 0.85rem; font-family: 'DM Sans', sans-serif;
+    outline: none; transition: border-color 0.2s;
+  }
   .search-wrap input:focus { border-color: var(--gold3); }
   .search-wrap input::placeholder { color: var(--text3); }
-  .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text3); font-size: 0.9rem; }
-  select.filter-select { padding: 10px 14px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text2); font-size: 0.82rem; font-family: 'DM Sans', sans-serif; outline: none; cursor: pointer; appearance: none; min-width: 140px; }
-  select.filter-select:focus { border-color: var(--gold3); }
-  .filter-count { font-size: 0.78rem; color: var(--text3); white-space: nowrap; }
+  .search-icon {
+    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    color: var(--text3); font-size: 0.9rem;
+  }
 
-  /* TABLE */
-  .table-wrap { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
-  table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
-  thead tr { background: var(--card2); border-bottom: 1px solid var(--border); }
-  th { padding: 13px 16px; text-align: left; font-size: 0.68rem; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.12em; cursor: pointer; user-select: none; white-space: nowrap; }
+  select.filter-select {
+    padding: 10px 14px;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); color: var(--text2);
+    font-size: 0.82rem; font-family: 'DM Sans', sans-serif;
+    outline: none; cursor: pointer;
+    appearance: none;
+    min-width: 140px;
+  }
+  select.filter-select:focus { border-color: var(--gold3); }
+
+  .filter-count {
+    font-size: 0.78rem; color: var(--text3);
+    white-space: nowrap;
+  }
+
+  /* ── CLIENT TABLE ── */
+  .table-wrap {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  table {
+    width: 100%; border-collapse: collapse;
+    font-size: 0.83rem;
+  }
+
+  thead tr {
+    background: var(--card2);
+    border-bottom: 1px solid var(--border);
+  }
+
+  th {
+    padding: 13px 16px; text-align: left;
+    font-size: 0.68rem; font-weight: 600;
+    color: var(--text3); text-transform: uppercase;
+    letter-spacing: 0.12em;
+    cursor: pointer; user-select: none;
+    white-space: nowrap;
+  }
   th:hover { color: var(--gold2); }
-  tbody tr { border-bottom: 1px solid rgba(180,140,60,0.07); transition: background 0.15s; cursor: pointer; }
+
+  tbody tr {
+    border-bottom: 1px solid rgba(180,140,60,0.07);
+    transition: background 0.15s;
+    cursor: pointer;
+  }
   tbody tr:hover { background: rgba(196,146,42,0.05); }
   tbody tr:last-child { border-bottom: none; }
-  td { padding: 13px 16px; color: var(--text2); vertical-align: middle; }
-  td.name-cell { color: var(--text); font-weight: 500; white-space: nowrap; }
-  .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap; }
+
+  td {
+    padding: 13px 16px; color: var(--text2);
+    vertical-align: middle;
+  }
+
+  td.name-cell {
+    color: var(--text); font-weight: 500;
+    white-space: nowrap;
+  }
+
+  /* Status badges */
+  .badge {
+    display: inline-block;
+    padding: 3px 10px; border-radius: 20px;
+    font-size: 0.7rem; font-weight: 600;
+    letter-spacing: 0.05em; text-transform: uppercase;
+    white-space: nowrap;
+  }
   .badge-new { background: rgba(91,143,204,0.15); color: #7BAEE8; border: 1px solid rgba(91,143,204,0.25); }
   .badge-active { background: rgba(76,175,122,0.15); color: #5DC987; border: 1px solid rgba(76,175,122,0.25); }
   .badge-placed { background: rgba(196,146,42,0.15); color: var(--gold2); border: 1px solid rgba(196,146,42,0.25); }
   .badge-hold { background: rgba(160,112,64,0.15); color: #C08848; border: 1px solid rgba(160,112,64,0.25); }
-  .size-pill { display: inline-block; padding: 2px 8px; background: var(--card2); border: 1px solid var(--border); border-radius: 6px; font-size: 0.72rem; color: var(--text3); }
+
+  /* Size badge */
+  .size-pill {
+    display: inline-block; padding: 2px 8px;
+    background: var(--card2); border: 1px solid var(--border);
+    border-radius: 6px; font-size: 0.72rem; color: var(--text3);
+  }
+
+  /* Feature dots */
   .feature-dots { display: flex; gap: 4px; flex-wrap: wrap; }
-  .fdot { font-size: 0.65rem; padding: 2px 6px; background: rgba(107,76,42,0.25); color: var(--bronze2); border-radius: 4px; border: 1px solid rgba(107,76,42,0.3); }
-  .no-data { text-align: center; padding: 60px 20px; color: var(--text3); font-size: 0.9rem; }
-  .no-icon { font-size: 2rem; margin-bottom: 12px; opacity: 0.4; }
-  th .sort-arrow { opacity: 0.3; margin-left: 4px; }
-  th.sorted .sort-arrow { opacity: 1; color: var(--gold); }
+  .fdot {
+    font-size: 0.65rem; padding: 2px 6px;
+    background: rgba(107,76,42,0.25); color: var(--bronze2);
+    border-radius: 4px; border: 1px solid rgba(107,76,42,0.3);
+  }
 
-  /* MODAL */
-  .overlay { position: fixed; inset: 0; background: rgba(5,4,2,0.8); z-index: 200; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+  .no-data {
+    text-align: center; padding: 60px 20px;
+    color: var(--text3); font-size: 0.9rem;
+  }
+  .no-data .no-icon { font-size: 2rem; margin-bottom: 12px; opacity: 0.4; }
+
+  /* ── MODAL / DETAIL PANEL ── */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(5,4,2,0.8);
+    z-index: 200; display: none; align-items: center; justify-content: center;
+    backdrop-filter: blur(4px);
+  }
   .overlay.open { display: flex; }
-  .modal { background: var(--bg2); border: 1px solid var(--border2); border-radius: var(--radius); width: min(680px, 95vw); max-height: 88vh; overflow-y: auto; padding: 32px; position: relative; }
-  .modal-close { position: absolute; top: 20px; right: 20px; background: var(--card); border: 1px solid var(--border); color: var(--text2); width: 32px; height: 32px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1rem; transition: all 0.2s; }
+
+  .modal {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    width: min(680px, 95vw);
+    max-height: 88vh; overflow-y: auto;
+    padding: 32px;
+    position: relative;
+  }
+
+  .modal-close {
+    position: absolute; top: 20px; right: 20px;
+    background: var(--card); border: 1px solid var(--border);
+    color: var(--text2); width: 32px; height: 32px;
+    border-radius: 8px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem; transition: all 0.2s;
+  }
   .modal-close:hover { background: var(--card2); color: var(--text); }
-  .modal-name { font-family: 'Cormorant Garamond', serif; font-size: 1.8rem; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+
+  .modal-name {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.8rem; font-weight: 700; color: var(--text);
+    margin-bottom: 4px;
+  }
   .modal-sub { font-size: 0.8rem; color: var(--text3); margin-bottom: 24px; }
-  .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
-  .modal-field { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 16px; }
-  .mf-label { font-size: 0.65rem; color: var(--text3); text-transform: uppercase; letter-spacing: 0.14em; margin-bottom: 5px; }
+
+  .modal-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 16px; margin-bottom: 20px;
+  }
+
+  .modal-field {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+  }
+  .mf-label {
+    font-size: 0.65rem; color: var(--text3);
+    text-transform: uppercase; letter-spacing: 0.14em;
+    margin-bottom: 5px;
+  }
   .mf-value { font-size: 0.9rem; color: var(--text); }
+
   .modal-field.full { grid-column: 1 / -1; }
-  .modal-status-row { display: flex; gap: 8px; align-items: center; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); flex-wrap: wrap; }
-  .modal-status-row label { font-size: 0.75rem; color: var(--text3); text-transform: uppercase; letter-spacing: 0.12em; margin-right: 4px; }
-  .status-btn { padding: 5px 14px; border-radius: 20px; font-size: 0.72rem; font-weight: 600; cursor: pointer; transition: all 0.2s; border: 1px solid var(--border2); background: transparent; color: var(--text2); letter-spacing: 0.05em; }
+
+  .modal-status-row {
+    display: flex; gap: 8px; align-items: center;
+    margin-top: 20px; padding-top: 20px;
+    border-top: 1px solid var(--border);
+  }
+  .modal-status-row label {
+    font-size: 0.75rem; color: var(--text3);
+    text-transform: uppercase; letter-spacing: 0.12em;
+    margin-right: 4px;
+  }
+  .status-btn {
+    padding: 5px 14px; border-radius: 20px;
+    font-size: 0.72rem; font-weight: 600;
+    cursor: pointer; transition: all 0.2s;
+    border: 1px solid var(--border2);
+    background: transparent; color: var(--text2);
+    letter-spacing: 0.05em;
+  }
   .status-btn.active-status { background: rgba(196,146,42,0.15); color: var(--gold2); border-color: rgba(196,146,42,0.3); }
-  .modal-contact-row { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+  .status-btn:hover { opacity: 0.8; }
 
-  /* NOTES */
-  .notes-area { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 0.85rem; padding: 12px; resize: vertical; min-height: 80px; outline: none; margin-top: 6px; }
-  .notes-area:focus { border-color: var(--gold3); }
-
-  /* GOOGLE SHEETS SETUP PAGE */
-  .setup-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; margin-bottom: 20px; }
-  .setup-step { display: flex; gap: 16px; margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid var(--border); }
-  .setup-step:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
-  .step-num { width: 32px; height: 32px; border-radius: 50%; background: rgba(196,146,42,0.15); border: 1px solid rgba(196,146,42,0.3); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; color: var(--gold2); flex-shrink: 0; }
-  .step-body { flex: 1; }
-  .step-title { font-size: 0.9rem; font-weight: 600; color: var(--text); margin-bottom: 6px; }
-  .step-desc { font-size: 0.8rem; color: var(--text3); line-height: 1.6; }
-  .setup-input { width: 100%; padding: 10px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-size: 0.85rem; font-family: 'DM Sans', sans-serif; outline: none; margin-top: 10px; transition: border-color 0.2s; }
-  .setup-input:focus { border-color: var(--gold3); }
-  .setup-input::placeholder { color: var(--text3); }
-
-  /* UPLOAD */
-  .upload-zone { border: 2px dashed var(--border2); border-radius: var(--radius); padding: 40px; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--card); }
+  /* ── UPLOAD SECTION ── */
+  .upload-zone {
+    border: 2px dashed var(--border2);
+    border-radius: var(--radius);
+    padding: 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--card);
+  }
   .upload-zone:hover { border-color: var(--gold); background: rgba(196,146,42,0.04); }
   .upload-zone.dragover { border-color: var(--gold2); background: rgba(196,146,42,0.08); }
+
   .upload-icon { font-size: 2.4rem; color: var(--gold3); margin-bottom: 14px; }
   .upload-title { font-size: 1rem; font-weight: 500; color: var(--text); margin-bottom: 6px; }
   .upload-hint { font-size: 0.8rem; color: var(--text3); }
 
-  /* FORM PAGE */
-  .form-preview-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
-  .form-preview-header { background: linear-gradient(135deg, var(--card2), var(--bg3)); padding: 28px 32px; border-bottom: 1px solid var(--border); }
-  .form-link-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: var(--gold); color: var(--bg); border-radius: var(--radius-sm); font-weight: 600; font-size: 0.85rem; text-decoration: none; transition: background 0.2s; cursor: pointer; border: none; }
-  .form-link-btn:hover { background: var(--gold2); }
-
+  /* ── PAGES ── */
   .page { display: none; }
   .page.active { display: block; }
 
+  /* ── SCROLLBAR ── */
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: var(--bg); }
   ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 
+  /* ── FORM EMBED PAGE ── */
+  .form-preview-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .form-preview-header {
+    background: linear-gradient(135deg, var(--card2), var(--bg3));
+    padding: 28px 32px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 16px;
+  }
+  .form-link-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 20px; background: var(--gold);
+    color: var(--bg); border-radius: var(--radius-sm);
+    font-weight: 600; font-size: 0.85rem;
+    text-decoration: none; transition: background 0.2s;
+    cursor: pointer; border: none;
+  }
+  .form-link-btn:hover { background: var(--gold2); }
+
+  /* ── RESPONSIVE ── */
   @media (max-width: 900px) {
     .sidebar { width: 60px; }
-    .sidebar-name, .sidebar-title, .nav-item span, .sidebar-footer, .avatar-wrap { display: none; }
+    .sidebar-name, .sidebar-title, .nav-item span,
+    .sidebar-footer, .avatar-wrap { display: none; }
     .nav-item { justify-content: center; }
     .main { margin-left: 60px; padding: 20px 16px; }
-    .stats-grid { grid-template-columns: repeat(2,1fr); }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
     .modal-grid { grid-template-columns: 1fr; }
   }
 
-  /* live sync indicator */
-  .live-tag { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; background: rgba(76,175,122,0.12); border: 1px solid rgba(76,175,122,0.25); border-radius: 20px; font-size: 0.7rem; color: var(--green); }
-  .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+  /* Leaflet map styling */
+  #dfw-map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(1.05) contrast(1.2) saturate(0.15); }
+  #dfw-map .leaflet-control-zoom a { background: var(--card2); color: var(--gold2); border-color: var(--border2); }
+  #dfw-map .leaflet-control-zoom a:hover { background: var(--card); }
+  .leaflet-popup-content-wrapper { background: rgba(10,9,7,0.96) !important; border: 1px solid rgba(196,146,42,0.4) !important; border-radius: 10px !important; color: #F0E8D8 !important; box-shadow: 0 4px 20px rgba(0,0,0,0.8) !important; }
+  .leaflet-popup-tip { background: rgba(10,9,7,0.96) !important; }
+  .leaflet-popup-content { margin: 12px 16px !important; }
+  .popup-city { font-size: 14px; font-weight: 700; color: #E8B84B; margin-bottom: 4px; }
+  .popup-sub { font-size: 11px; color: #A89878; margin-bottom: 6px; }
+  .popup-count { font-size: 12px; color: #5DC987; font-weight: 600; }
+  .city-dot { border-radius: 50%; border: 2px solid rgba(232,184,75,0.4); box-shadow: 0 0 8px rgba(232,184,75,0.8), 0 0 20px rgba(232,184,75,0.3); animation: dotPulse 2s infinite; cursor: pointer; transition: transform 0.2s; }
+  .city-dot:hover { transform: scale(1.4); }
+  @keyframes dotPulse { 0%,100%{box-shadow:0 0 8px rgba(232,184,75,0.8),0 0 20px rgba(232,184,75,0.3);}50%{box-shadow:0 0 14px rgba(232,184,75,1),0 0 35px rgba(232,184,75,0.6);} }
 </style>
 </head>
 <body>
@@ -235,27 +506,43 @@
   <div class="loader-bar-wrap"><div class="loader-bar" id="lbar"></div></div>
 </div>
 
+<!-- APP -->
 <div id="app">
+
   <!-- SIDEBAR -->
   <nav class="sidebar">
     <div class="sidebar-header">
-      <div class="avatar-wrap"><div class="avatar-initials">KT</div></div>
+      <div class="avatar-wrap">
+        <div class="avatar-initials">KT</div>
+      </div>
       <div class="sidebar-name">Ke'Undra Taylor</div>
       <div class="sidebar-title">Apartment Locator</div>
     </div>
     <div class="sidebar-nav">
-      <div class="nav-item active" onclick="showPage('dashboard')"><span class="nav-icon">📊</span><span>Dashboard</span></div>
-      <div class="nav-item" onclick="showPage('clients')"><span class="nav-icon">👥</span><span>Clients</span></div>
-      <div class="nav-item" onclick="showPage('import')"><span class="nav-icon">📥</span><span>Import Excel</span></div>
-      <div class="nav-item" onclick="showPage('sheets')"><span class="nav-icon">🔗</span><span>Live Google Sheets</span></div>
-      <div class="nav-item" onclick="showPage('form')"><span class="nav-icon">📋</span><span>Client Form</span></div>
+      <div class="nav-item active" onclick="showPage('dashboard')">
+        <span class="nav-icon">📊</span>
+        <span>Dashboard</span>
+      </div>
+      <div class="nav-item" onclick="showPage('clients')">
+        <span class="nav-icon">👥</span>
+        <span>Clients</span>
+      </div>
+      <div class="nav-item" onclick="showPage('import')">
+        <span class="nav-icon">📥</span>
+        <span>Import Excel</span>
+      </div>
+      <div class="nav-item" onclick="showPage('form')">
+        <span class="nav-icon">📋</span>
+        <span>Client Form</span>
+      </div>
     </div>
     <div class="sidebar-footer">DFW · 2026</div>
   </nav>
 
+  <!-- MAIN -->
   <main class="main">
 
-    <!-- DASHBOARD -->
+    <!-- DASHBOARD PAGE -->
     <div class="page active" id="page-dashboard">
       <div class="topbar">
         <div>
@@ -263,34 +550,78 @@
           <div class="page-sub">Here's your DFW client overview</div>
         </div>
         <div class="topbar-right">
-          <div id="connection-tag"></div>
           <button class="btn" onclick="showPage('import')">📥 Import Excel</button>
           <button class="btn btn-gold" onclick="window.open('https://docs.google.com/forms/d/e/1FAIpQLSchE21k_hR4FGndZRGFhyCq5nKvoStmbuoLqCUvdDQ52njFXA/viewform','_blank')">+ New Client Form</button>
         </div>
       </div>
 
-      <div class="stats-grid">
-        <div class="stat-card"><div class="stat-label">Total Clients</div><div class="stat-value" id="stat-total">0</div><div class="stat-change" id="stat-total-sub">Load data to populate</div><div class="stat-icon">👥</div></div>
-        <div class="stat-card"><div class="stat-label">Active Leads</div><div class="stat-value" id="stat-active">0</div><div class="stat-change" id="stat-active-sub">In progress</div><div class="stat-icon">🔥</div></div>
-        <div class="stat-card"><div class="stat-label">Placed</div><div class="stat-value" id="stat-placed">0</div><div class="stat-change" id="stat-placed-sub">Signed & moved in</div><div class="stat-icon">🏠</div></div>
-        <div class="stat-card"><div class="stat-label">Avg Budget</div><div class="stat-value" id="stat-budget">$0</div><div class="stat-change" id="stat-budget-sub">Monthly max</div><div class="stat-icon">💰</div></div>
+      <div class="stats-grid" id="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total Clients</div>
+          <div class="stat-value" id="stat-total">0</div>
+          <div class="stat-change" id="stat-total-sub">Load Excel to populate</div>
+          <div class="stat-icon">👥</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Active Leads</div>
+          <div class="stat-value" id="stat-active">0</div>
+          <div class="stat-change" id="stat-active-sub">In progress</div>
+          <div class="stat-icon">🔥</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Placed</div>
+          <div class="stat-value" id="stat-placed">0</div>
+          <div class="stat-change" id="stat-placed-sub">Signed & moved in</div>
+          <div class="stat-icon">🏠</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Avg Budget</div>
+          <div class="stat-value" id="stat-budget">$0</div>
+          <div class="stat-change" id="stat-budget-sub">Monthly max</div>
+          <div class="stat-icon">💰</div>
+        </div>
       </div>
 
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-        <div style="font-family:'Cormorant Garamond',serif;font-size:1.3rem;font-weight:600;color:var(--text);">Recent Clients</div>
-        <button class="btn" onclick="showPage('clients')" style="font-size:0.75rem;padding:7px 14px;">View All →</button>
+      <!-- ── DFW LIVE MAP ── -->
+      <div style="background:var(--card);border:1px solid var(--border2);border-radius:var(--radius);overflow:hidden;margin-bottom:32px;">
+        <div style="padding:18px 24px;border-bottom:1px solid var(--border);background:var(--card2);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+          <div>
+            <div style="font-family:'Cormorant Garamond',serif;font-size:1.2rem;font-weight:700;color:var(--gold2);">⬡ DFW Client Heat Map</div>
+            <div style="font-size:0.72rem;color:var(--text3);margin-top:2px;">Click any dot to see area demand · <span id="map-client-count">Import clients to populate</span></div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <div id="map-live-tag" style="display:none;padding:3px 10px;background:rgba(76,175,122,0.12);border:1px solid rgba(76,175,122,0.25);border-radius:20px;font-size:0.7rem;color:#4CAF7A;">● Live</div>
+          </div>
+        </div>
+        <div id="dfw-map" style="width:100%;height:480px;"></div>
+        <div style="padding:10px 24px;border-top:1px solid var(--border);background:var(--card2);display:flex;gap:20px;flex-wrap:wrap;align-items:center;">
+          <div style="display:flex;align-items:center;gap:6px;font-size:0.7rem;color:var(--text3);"><div style="width:10px;height:10px;border-radius:50%;background:#FFD700;box-shadow:0 0 6px #FFD700;"></div>High demand</div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:0.7rem;color:var(--text3);"><div style="width:8px;height:8px;border-radius:50%;background:#C4922A;"></div>Active clients</div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:0.7rem;color:var(--text3);"><div style="width:6px;height:6px;border-radius:50%;background:#6B4C2A;"></div>Low activity</div>
+          <div style="margin-left:auto;font-size:0.7rem;color:var(--text3);">Powered by OpenStreetMap · Click dots for details</div>
+        </div>
+      </div>
+
+      <!-- Recent clients preview -->
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+        <div style="font-family:'Cormorant Garamond',serif; font-size:1.3rem; font-weight:600; color:var(--text);">Recent Clients</div>
+        <button class="btn" onclick="showPage('clients')" style="font-size:0.75rem; padding:7px 14px;">View All →</button>
       </div>
       <div id="recent-table-wrap"></div>
     </div>
 
-    <!-- CLIENTS -->
+    <!-- CLIENTS PAGE -->
     <div class="page" id="page-clients">
       <div class="topbar">
-        <div><div class="page-title">Client List</div><div class="page-sub">All DFW apartment seekers</div></div>
+        <div>
+          <div class="page-title">Client List</div>
+          <div class="page-sub">All DFW apartment seekers</div>
+        </div>
         <div class="topbar-right">
           <button class="btn btn-gold" onclick="showPage('import')">📥 Import Excel</button>
         </div>
       </div>
+
       <div class="filter-bar">
         <div class="search-wrap">
           <span class="search-icon">🔍</span>
@@ -319,124 +650,89 @@
         </select>
         <div class="filter-count" id="filter-count"></div>
       </div>
+
       <div class="table-wrap" id="main-table-wrap">
-        <div class="no-data"><div class="no-icon">📥</div><div>Import your Excel file or connect Google Sheets to see clients</div><button class="btn btn-gold" onclick="showPage('import')" style="margin-top:16px;">Import Now</button></div>
+        <div class="no-data">
+          <div class="no-icon">📥</div>
+          <div>Import your Excel file to see clients here</div>
+          <button class="btn btn-gold" onclick="showPage('import')" style="margin-top:16px;">Import Now</button>
+        </div>
       </div>
     </div>
 
-    <!-- IMPORT EXCEL -->
+    <!-- IMPORT PAGE -->
     <div class="page" id="page-import">
       <div class="topbar">
-        <div><div class="page-title">Import Excel</div><div class="page-sub">Upload your Google Form responses export</div></div>
+        <div>
+          <div class="page-title">Import Excel</div>
+          <div class="page-sub">Upload your Google Form responses Excel file</div>
+        </div>
       </div>
+
       <div class="upload-zone" id="drop-zone"
            onclick="document.getElementById('file-input').click()"
-           ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
+           ondragover="handleDragOver(event)"
+           ondragleave="handleDragLeave(event)"
+           ondrop="handleDrop(event)">
         <div class="upload-icon">📊</div>
         <div class="upload-title">Drop your Excel file here</div>
         <div class="upload-hint">or click to browse · Supports .xlsx, .xls, .csv</div>
         <input type="file" id="file-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleFile(event)">
       </div>
-      <div id="import-status" style="margin-top:20px;font-size:0.85rem;color:var(--text3);"></div>
-      <div style="margin-top:36px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;">
-        <div style="font-size:0.85rem;font-weight:600;color:var(--gold2);margin-bottom:12px;">📌 Expected Column Names (from your Google Form export)</div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
-          ${['Full name','Phone Number','Email Address','Desired move-in Date','Preferred Areas or cities','Apartment Size Needed','Maximum Total Monthly Budget','Desired Features','Monthly Income Range','How soon are you ready','rental or credit history','Anything else','follow up','How did you hear'].map(c=>`<div style="font-size:0.75rem;padding:6px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text3);">${c}</div>`).join('')}
+
+      <div id="import-status" style="margin-top:20px; font-size:0.85rem; color:var(--text3);"></div>
+
+      <div style="margin-top:36px; background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:24px;">
+        <div style="font-size:0.85rem; font-weight:600; color:var(--gold2); margin-bottom:12px;">📌 Expected Column Names</div>
+        <div style="display:grid; grid-template-columns: repeat(3,1fr); gap:8px;">
+          ${['Full name','Phone Number','Email Address','Desired move-in Date','Preferred Areas or cities',
+             'Apartment Size Needed','Maximum Total Monthly Budget','Desired Features',
+             'Monthly Income Range','How soon are you ready','rental or credit history',
+             'Anything else','follow up','How did you hear'].map(c =>
+            `<div style="font-size:0.75rem; padding:6px 10px; background:var(--bg2); border:1px solid var(--border); border-radius:6px; color:var(--text3);">${c}</div>`
+          ).join('')}
+        </div>
+        <div style="margin-top:14px; font-size:0.75rem; color:var(--text3);">
+          Column names don't need to match exactly — the dashboard maps common variations automatically.
         </div>
       </div>
     </div>
 
-    <!-- LIVE GOOGLE SHEETS -->
-    <div class="page" id="page-sheets">
-      <div class="topbar">
-        <div><div class="page-title">Live Google Sheets</div><div class="page-sub">Auto-sync — new form submissions appear instantly</div></div>
-      </div>
-
-      <div class="sheets-banner" id="sheets-banner">
-        <div class="sheets-status-dot" id="sheets-dot"></div>
-        <div class="sheets-info">
-          <div class="sheets-info-title" id="sheets-status-title">Not Connected</div>
-          <div class="sheets-info-sub" id="sheets-status-sub">Add your API key and Sheet ID below to activate live sync</div>
-        </div>
-        <div class="sheets-actions">
-          <button class="btn btn-green" id="sheets-connect-btn" onclick="connectSheets()">Connect Now</button>
-          <button class="btn" id="sheets-refresh-btn" onclick="fetchFromSheets()" style="display:none">🔄 Refresh</button>
-        </div>
-      </div>
-
-      <div class="setup-card">
-        <div style="font-size:0.85rem;font-weight:600;color:var(--gold2);margin-bottom:20px;">⚙️ Setup — Fill these in when ready</div>
-
-        <div class="setup-step">
-          <div class="step-num">1</div>
-          <div class="step-body">
-            <div class="step-title">Get a Google API Key</div>
-            <div class="step-desc">Go to <strong style="color:var(--text2);">console.cloud.google.com</strong> → Create project → Enable "Google Sheets API" → Credentials → Create API Key. Restrict it to Sheets API only.</div>
-            <input class="setup-input" type="password" id="api-key-input" placeholder="Paste your Google API Key here" oninput="saveConfig()">
-          </div>
-        </div>
-
-        <div class="setup-step">
-          <div class="step-num">2</div>
-          <div class="step-body">
-            <div class="step-title">Get your Sheet ID</div>
-            <div class="step-desc">Open your Google Sheet that collects form responses. Copy the long ID from the URL:<br><span style="color:var(--text2);font-family:monospace;font-size:0.78rem;">docs.google.com/spreadsheets/d/<span style="color:var(--gold2);">THIS-PART-HERE</span>/edit</span></div>
-            <input class="setup-input" type="text" id="sheet-id-input" placeholder="Paste your Sheet ID here" oninput="saveConfig()">
-          </div>
-        </div>
-
-        <div class="setup-step">
-          <div class="step-num">3</div>
-          <div class="step-body">
-            <div class="step-title">Sheet Tab Name (optional)</div>
-            <div class="step-desc">Usually "Form Responses 1" — leave blank to use the first tab.</div>
-            <input class="setup-input" type="text" id="sheet-tab-input" placeholder="Form Responses 1" oninput="saveConfig()">
-          </div>
-        </div>
-
-        <div class="setup-step">
-          <div class="step-num">4</div>
-          <div class="step-body">
-            <div class="step-title">Auto-refresh Interval</div>
-            <div class="step-desc">How often to check for new submissions automatically.</div>
-            <select class="filter-select" id="refresh-interval" onchange="saveConfig()" style="margin-top:10px;background:var(--bg);">
-              <option value="0">Manual only</option>
-              <option value="60">Every 1 minute</option>
-              <option value="300" selected>Every 5 minutes</option>
-              <option value="900">Every 15 minutes</option>
-              <option value="1800">Every 30 minutes</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <div style="font-size:0.78rem;color:var(--text3);padding:0 4px;">
-        🔒 Your API key is saved only in this browser — never sent anywhere except directly to Google.
-      </div>
-    </div>
-
-    <!-- CLIENT FORM -->
+    <!-- FORM PAGE -->
     <div class="page" id="page-form">
       <div class="topbar">
-        <div><div class="page-title">Client Intake Form</div><div class="page-sub">Send this link to new clients</div></div>
+        <div>
+          <div class="page-title">Client Intake Form</div>
+          <div class="page-sub">Send this link to new clients</div>
+        </div>
       </div>
       <div class="form-preview-card">
         <div class="form-preview-header">
           <div>
-            <div style="font-family:'Cormorant Garamond',serif;font-size:1.4rem;font-weight:700;color:var(--text);margin-bottom:6px;">⬇️ START YOUR SEARCH!</div>
-            <div style="font-size:0.83rem;color:var(--text2);max-width:480px;line-height:1.6;">Hey there, I'm Ke'Undra Taylor 👋🏾 — Fill out this quick survey to tell me what you're looking for in the DFW area. My service is 100% free!</div>
+            <div style="font-family:'Cormorant Garamond',serif; font-size:1.4rem; font-weight:700; color:var(--text); margin-bottom:6px;">⬇️ START YOUR SEARCH!</div>
+            <div style="font-size:0.83rem; color:var(--text2); max-width:480px; line-height:1.6;">
+              Hey there, I'm Ke'Undra Taylor 👋🏾 — Fill out this quick survey to tell me what you're looking for in the DFW area. My service is 100% free!
+            </div>
           </div>
         </div>
-        <div style="padding:28px 32px;display:flex;flex-direction:column;gap:14px;">
-          <div style="display:flex;gap:10px;flex-wrap:wrap;">
-            <button class="form-link-btn" onclick="window.open('https://docs.google.com/forms/d/e/1FAIpQLSchE21k_hR4FGndZRGFhyCq5nKvoStmbuoLqCUvdDQ52njFXA/viewform','_blank')">🔗 Open Form</button>
+        <div style="padding:28px 32px; display:flex; flex-direction:column; gap:14px;">
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="form-link-btn" onclick="window.open('https://docs.google.com/forms/d/e/1FAIpQLSchE21k_hR4FGndZRGFhyCq5nKvoStmbuoLqCUvdDQ52njFXA/viewform','_blank')">
+              🔗 Open Form
+            </button>
             <button class="btn" onclick="copyFormLink()">📋 Copy Link</button>
           </div>
-          <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 16px;">
-            <div style="font-size:0.68rem;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">Fields Collected</div>
-            <div style="display:flex;flex-wrap:wrap;gap:6px;">
-              ${['Full Name','Phone','Email','Move-in Date','Preferred Cities','Apt Size','Max Budget','Desired Features','Income Range','Ready Timeline','Credit/Rental History','Extra Notes','Follow-up Consent','Referral Source'].map(f=>`<span class="fdot" style="background:rgba(196,146,42,0.1);color:var(--gold3);border-color:rgba(196,146,42,0.2);">${f}</span>`).join('')}
+          <div style="background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:12px 16px;">
+            <div style="font-size:0.68rem; color:var(--text3); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:4px;">Form Fields Collected</div>
+            <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">
+              ${['Full Name','Phone','Email','Move-in Date','Preferred Cities','Apt Size',
+                 'Max Budget','Desired Features','Income Range','Ready Timeline',
+                 'Credit/Rental History','Extra Notes','Follow-up Consent','Referral Source']
+                .map(f => `<span class="fdot" style="background:rgba(196,146,42,0.1); color:var(--gold3); border-color:rgba(196,146,42,0.2);">${f}</span>`).join('')}
             </div>
+          </div>
+          <div style="font-size:0.78rem; color:var(--text3);">
+            Responses automatically export to your Google Sheet, then download as Excel to import here.
           </div>
         </div>
       </div>
@@ -445,7 +741,7 @@
   </main>
 </div>
 
-<!-- MODAL -->
+<!-- CLIENT DETAIL MODAL -->
 <div class="overlay" id="modal-overlay" onclick="closeModal(event)">
   <div class="modal" id="modal-content">
     <button class="modal-close" onclick="closeModal()">✕</button>
@@ -454,112 +750,38 @@
 </div>
 
 <script>
-// ── CONFIG ──
-const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSchE21k_hR4FGndZRGFhyCq5nKvoStmbuoLqCUvdDQ52njFXA/viewform';
+// ── STATE ──
 let allClients = [];
 let filteredClients = [];
-let sortCol = null, sortDir = 1;
+let sortCol = null;
+let sortDir = 1;
 const statusMap = {};
-const notesMap = {};
-let sheetsConnected = false;
-let autoRefreshTimer = null;
-
-// Load saved config
-let cfg = JSON.parse(localStorage.getItem('dra_cfg') || '{}');
-
-window.addEventListener('load', () => {
-  if (cfg.apiKey) document.getElementById('api-key-input').value = cfg.apiKey;
-  if (cfg.sheetId) document.getElementById('sheet-id-input').value = cfg.sheetId;
-  if (cfg.sheetTab) document.getElementById('sheet-tab-input').value = cfg.sheetTab;
-  if (cfg.interval) document.getElementById('refresh-interval').value = cfg.interval;
-  if (cfg.apiKey && cfg.sheetId) {
-    updateSheetsBanner(true, 'Ready to connect', 'Click "Connect Now" to load live data');
-  }
-  startLoader();
-});
-
-function saveConfig() {
-  cfg.apiKey = document.getElementById('api-key-input').value.trim();
-  cfg.sheetId = document.getElementById('sheet-id-input').value.trim();
-  cfg.sheetTab = document.getElementById('sheet-tab-input').value.trim();
-  cfg.interval = document.getElementById('refresh-interval').value;
-  localStorage.setItem('dra_cfg', JSON.stringify(cfg));
-}
-
-// ── GOOGLE SHEETS LIVE SYNC ──
-async function connectSheets() {
-  cfg.apiKey = document.getElementById('api-key-input').value.trim();
-  cfg.sheetId = document.getElementById('sheet-id-input').value.trim();
-  cfg.sheetTab = document.getElementById('sheet-tab-input').value.trim() || 'Form Responses 1';
-  if (!cfg.apiKey || !cfg.sheetId) {
-    alert('Please enter your API Key and Sheet ID first.');
-    return;
-  }
-  saveConfig();
-  await fetchFromSheets();
-}
-
-async function fetchFromSheets() {
-  const { apiKey, sheetId, sheetTab } = cfg;
-  if (!apiKey || !sheetId) return;
-  const tab = encodeURIComponent(sheetTab || 'Form Responses 1');
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${tab}?key=${apiKey}`;
-  try {
-    updateSheetsBanner(false, 'Syncing…', 'Fetching latest responses from Google Sheets');
-    const res = await fetch(url);
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
-    const rows = data.values || [];
-    allClients = parseClients(rows);
-    filteredClients = [...allClients];
-    sheetsConnected = true;
-    updateSheetsBanner(true, '🟢 Live Connected', `${allClients.length} clients · Last synced ${new Date().toLocaleTimeString()}`);
-    document.getElementById('connection-tag').innerHTML = `<div class="live-tag"><div class="live-dot"></div>Live</div>`;
-    document.getElementById('sheets-refresh-btn').style.display = 'inline-flex';
-    updateStats(); renderTable('main-table-wrap', filteredClients); renderRecentTable();
-    setAutoRefresh();
-  } catch (err) {
-    updateSheetsBanner(false, '❌ Connection Failed', err.message + ' — Check your API key and Sheet ID');
-  }
-}
-
-function setAutoRefresh() {
-  if (autoRefreshTimer) clearInterval(autoRefreshTimer);
-  const interval = parseInt(cfg.interval || 0);
-  if (interval > 0) autoRefreshTimer = setInterval(fetchFromSheets, interval * 1000);
-}
-
-function updateSheetsBanner(connected, title, sub) {
-  const banner = document.getElementById('sheets-banner');
-  const dot = document.getElementById('sheets-dot');
-  banner.className = 'sheets-banner' + (connected ? ' connected' : '');
-  dot.className = 'sheets-status-dot' + (connected ? ' live' : '');
-  document.getElementById('sheets-status-title').textContent = title;
-  document.getElementById('sheets-status-sub').textContent = sub;
-}
 
 // ── FIELD MAPPING ──
 const fieldMap = {
-  name: ['full name','name','client name'],
-  phone: ['phone number','phone','mobile','cell'],
-  email: ['email address','email'],
-  moveIn: ['desired move-in date','move-in date','move in date','movein'],
-  areas: ['preferred areas or cities','preferred areas','cities','area','location'],
-  size: ['apartment size needed','apartment size','size','bedrooms','apt size'],
-  budget: ['maximum total monthly budget','budget','max budget','monthly budget'],
-  features: ['desired features','features','amenities'],
-  income: ['monthly income range','income range','income'],
-  ready: ['how soon are you ready to apply','how soon','ready','timeline'],
-  history: ['rental or credit history','credit history','rental history','background'],
-  notes: ['anything else','extra details','notes','additional info'],
-  followup: ['may i follow up','follow up','contact consent'],
-  source: ['how did you hear about me','referral source','source']
+  name: ['full name', 'name', 'client name'],
+  phone: ['phone number', 'phone', 'mobile', 'cell'],
+  email: ['email address', 'email'],
+  moveIn: ['desired move-in date', 'move-in date', 'move in date', 'movein'],
+  areas: ['preferred areas or cities', 'preferred areas', 'cities', 'area', 'location'],
+  size: ['apartment size needed', 'apartment size', 'size', 'bedrooms', 'apt size'],
+  budget: ['maximum total monthly budget', 'budget', 'max budget', 'monthly budget'],
+  features: ['desired features', 'features', 'amenities'],
+  income: ['monthly income range', 'income range', 'income'],
+  ready: ['how soon are you ready to apply', 'how soon', 'ready', 'timeline'],
+  history: ['rental or credit history', 'credit history', 'rental history', 'background'],
+  notes: ['anything else', 'extra details', 'notes', 'additional info'],
+  followup: ['may i follow up', 'follow up', 'contact consent'],
+  source: ['how did you hear about me', 'referral source', 'source']
 };
 
 function mapField(headers, key) {
+  const terms = fieldMap[key];
   for (const h of headers) {
     const hl = h.toLowerCase().trim();
-    for (const t of fieldMap[key]) { if (hl.includes(t)) return h; }
+    for (const t of terms) {
+      if (hl.includes(t)) return h;
+    }
   }
   return null;
 }
@@ -568,27 +790,49 @@ function parseClients(rows) {
   if (!rows || rows.length < 2) return [];
   const headers = rows[0].map(h => String(h || ''));
   const mapped = {};
-  for (const key of Object.keys(fieldMap)) mapped[key] = mapField(headers, key);
+  for (const key of Object.keys(fieldMap)) {
+    mapped[key] = mapField(headers, key);
+  }
   return rows.slice(1).map((row, i) => {
     const get = (key) => {
-      const h = mapped[key]; if (!h) return '';
+      const h = mapped[key];
+      if (!h) return '';
       const idx = headers.indexOf(h);
       return idx >= 0 ? String(row[idx] || '').trim() : '';
     };
     const id = 'c' + i;
-    return { id, name: get('name')||'Unknown', phone: get('phone'), email: get('email'),
-      moveIn: get('moveIn'), areas: get('areas'), size: get('size'), budget: get('budget'),
-      features: get('features'), income: get('income'), ready: get('ready'),
-      history: get('history'), notes: get('notes'), followup: get('followup'),
-      source: get('source'), status: statusMap[id]||'new' };
+    return {
+      id, name: get('name') || 'Unknown',
+      phone: get('phone'), email: get('email'),
+      moveIn: get('moveIn'), areas: get('areas'),
+      size: get('size'), budget: get('budget'),
+      features: get('features'), income: get('income'),
+      ready: get('ready'), history: get('history'),
+      notes: get('notes'), followup: get('followup'),
+      source: get('source'),
+      status: statusMap[id] || 'new'
+    };
   }).filter(c => c.name && c.name !== 'Unknown');
 }
 
-// ── FILE UPLOAD ──
-function handleFile(e) { const f = e.target.files[0]; if(f) processFile(f); }
-function handleDragOver(e) { e.preventDefault(); document.getElementById('drop-zone').classList.add('dragover'); }
-function handleDragLeave() { document.getElementById('drop-zone').classList.remove('dragover'); }
-function handleDrop(e) { e.preventDefault(); document.getElementById('drop-zone').classList.remove('dragover'); const f=e.dataTransfer.files[0]; if(f) processFile(f); }
+// ── FILE HANDLING ──
+function handleFile(e) {
+  const file = e.target.files[0];
+  if (file) processFile(file);
+}
+function handleDragOver(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.add('dragover');
+}
+function handleDragLeave(e) {
+  document.getElementById('drop-zone').classList.remove('dragover');
+}
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) processFile(file);
+}
 
 function processFile(file) {
   const status = document.getElementById('import-status');
@@ -596,15 +840,20 @@ function processFile(file) {
   const reader = new FileReader();
   reader.onload = (e) => {
     try {
-      const wb = XLSX.read(e.target.result, {type:'binary'});
+      const wb = XLSX.read(e.target.result, { type: 'binary' });
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
       allClients = parseClients(rows);
       filteredClients = [...allClients];
       status.innerHTML = `<span style="color:var(--green);">✅ Loaded ${allClients.length} clients from "${file.name}"</span>`;
-      updateStats(); renderTable('main-table-wrap', filteredClients); renderRecentTable();
+      updateStats();
+      renderTable('main-table-wrap', filteredClients);
+      renderRecentTable();
+      updateMapCounts();
       setTimeout(() => showPage('clients'), 800);
-    } catch(err) { status.innerHTML = `<span style="color:var(--red);">❌ Error: ${err.message}</span>`; }
+    } catch (err) {
+      status.innerHTML = `<span style="color:var(--red);">❌ Error reading file: ${err.message}</span>`;
+    }
   };
   reader.readAsBinaryString(file);
 }
@@ -612,52 +861,117 @@ function processFile(file) {
 // ── STATS ──
 function updateStats() {
   const total = allClients.length;
-  const active = allClients.filter(c=>c.status==='active').length;
-  const placed = allClients.filter(c=>c.status==='placed').length;
-  const budgets = allClients.map(c=>parseBudget(c.budget)).filter(b=>b>0);
+  const active = allClients.filter(c => c.status === 'active').length;
+  const placed = allClients.filter(c => c.status === 'placed').length;
+  const budgets = allClients.map(c => parseBudget(c.budget)).filter(b => b > 0);
   const avg = budgets.length ? Math.round(budgets.reduce((a,b)=>a+b,0)/budgets.length) : 0;
+
   animateCount('stat-total', total);
   animateCount('stat-active', active);
   animateCount('stat-placed', placed);
-  if (avg>0) document.getElementById('stat-budget').textContent = '$'+avg.toLocaleString();
-  document.getElementById('stat-total-sub').textContent = total+' total leads';
-  document.getElementById('stat-active-sub').textContent = active+' in progress';
-  document.getElementById('stat-placed-sub').textContent = placed+' signed & moved in';
+
+  if (avg > 0) {
+    document.getElementById('stat-budget').textContent = '$' + avg.toLocaleString();
+  }
+  document.getElementById('stat-total-sub').textContent = total + ' total leads';
+  document.getElementById('stat-active-sub').textContent = active + ' in progress';
+  document.getElementById('stat-placed-sub').textContent = placed + ' signed & moved in';
+  if (avg > 0) document.getElementById('stat-budget-sub').textContent = 'avg monthly max';
 }
 
-function parseBudget(str) { if(!str) return 0; const m=str.replace(/,/g,'').match(/\d+/); return m?parseInt(m[0]):0; }
+function parseBudget(str) {
+  if (!str) return 0;
+  const m = str.replace(/,/g,'').match(/\d+/);
+  return m ? parseInt(m[0]) : 0;
+}
 
 function animateCount(id, target) {
-  const el = document.getElementById(id); let current=0;
-  const step = Math.max(1, Math.ceil(target/30));
-  const t = setInterval(()=>{ current=Math.min(current+step,target); el.textContent=current; if(current>=target) clearInterval(t); }, 30);
+  const el = document.getElementById(id);
+  let current = 0;
+  const step = Math.max(1, Math.ceil(target / 30));
+  const timer = setInterval(() => {
+    current = Math.min(current + step, target);
+    el.textContent = current;
+    if (current >= target) clearInterval(timer);
+  }, 30);
 }
 
 // ── RENDER TABLE ──
 function renderTable(containerId, clients, limit) {
   const wrap = document.getElementById(containerId);
-  const data = limit ? clients.slice(0,limit) : clients;
+  const data = limit ? clients.slice(0, limit) : clients;
+
   if (!data.length) {
     wrap.innerHTML = `<div class="no-data"><div class="no-icon">👥</div><div>No clients match your filters</div></div>`;
     return;
   }
-  const badge = (s) => {
-    s=(s||'new').toLowerCase();
-    const map={new:'badge-new',active:'badge-active',placed:'badge-placed',hold:'badge-hold'};
-    const lbl={new:'New',active:'Active',placed:'Placed',hold:'On Hold'};
-    return `<span class="badge ${map[s]||'badge-new'}">${lbl[s]||'New'}</span>`;
+
+  const badge = (status) => {
+    const s = (status || 'new').toLowerCase();
+    const map = { new: 'badge-new', active: 'badge-active', placed: 'badge-placed', hold: 'badge-hold' };
+    const label = { new: 'New', active: 'Active', placed: 'Placed', hold: 'On Hold' };
+    return `<span class="badge ${map[s]||'badge-new'}">${label[s]||'New'}</span>`;
   };
-  const fdots = (str) => {
-    if(!str) return '';
-    const items=str.split(/[,;]+/).map(s=>s.trim()).filter(Boolean).slice(0,3);
+
+  const featureDots = (str) => {
+    if (!str) return '';
+    const items = str.split(/[,;]+/).map(s=>s.trim()).filter(Boolean).slice(0,3);
     return `<div class="feature-dots">${items.map(f=>`<span class="fdot">${f}</span>`).join('')}</div>`;
   };
-  const cols = [{key:'name',label:'Client'},{key:'areas',label:'Area'},{key:'size',label:'Size'},{key:'budget',label:'Budget'},{key:'ready',label:'Timeline'},{key:'status',label:'Status'}];
-  wrap.innerHTML = `<table><thead><tr>${cols.map(c=>`<th onclick="sortBy('${c.key}')" class="${sortCol===c.key?'sorted':''}">${c.label} <span class="sort-arrow">${sortCol===c.key?(sortDir>0?'↑':'↓'):'↕'}</span></th>`).join('')}<th>Features</th><th>Move-in</th></tr></thead><tbody>${data.map(c=>`<tr onclick="openModal('${c.id}')"><td class="name-cell"><div>${c.name}</div><div style="font-size:0.72rem;color:var(--text3);margin-top:2px;">${c.phone||c.email||''}</div></td><td>${c.areas?c.areas.split(/[,;]/)[0].trim():'—'}</td><td><span class="size-pill">${c.size||'—'}</span></td><td style="color:var(--gold2);font-weight:500;">${c.budget||'—'}</td><td style="font-size:0.78rem;">${c.ready||'—'}</td><td>${badge(c.status)}</td><td>${fdots(c.features)}</td><td style="font-size:0.78rem;color:var(--text3);">${c.moveIn||'—'}</td></tr>`).join('')}</tbody></table>`;
-  anime({ targets:`#${containerId} tbody tr`, opacity:[0,1], translateY:[8,0], duration:300, delay:anime.stagger(40), easing:'easeOutQuad' });
+
+  const cols = [
+    { key: 'name', label: 'Client' },
+    { key: 'areas', label: 'Area' },
+    { key: 'size', label: 'Size' },
+    { key: 'budget', label: 'Budget' },
+    { key: 'ready', label: 'Timeline' },
+    { key: 'status', label: 'Status' },
+  ];
+
+  wrap.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          ${cols.map(c => `<th onclick="sortBy('${c.key}')" class="${sortCol===c.key?'sorted':''}">${c.label} <span class="sort-arrow">${sortCol===c.key?(sortDir>0?'↑':'↓'):'↕'}</span></th>`).join('')}
+          <th>Features</th>
+          <th>Move-in</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.map(c => `
+          <tr onclick="openModal('${c.id}')">
+            <td class="name-cell">
+              <div>${c.name}</div>
+              <div style="font-size:0.72rem; color:var(--text3); margin-top:2px;">${c.phone||c.email||''}</div>
+            </td>
+            <td>${c.areas ? c.areas.split(/[,;]/)[0].trim() : '—'}</td>
+            <td><span class="size-pill">${c.size||'—'}</span></td>
+            <td style="color:var(--gold2); font-weight:500;">${c.budget||'—'}</td>
+            <td style="font-size:0.78rem;">${c.ready||'—'}</td>
+            <td>${badge(c.status)}</td>
+            <td>${featureDots(c.features)}</td>
+            <td style="font-size:0.78rem; color:var(--text3);">${c.moveIn||'—'}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+
+  // Animate rows
+  anime({
+    targets: `#${containerId} tbody tr`,
+    opacity: [0, 1],
+    translateY: [8, 0],
+    duration: 300,
+    delay: anime.stagger(40),
+    easing: 'easeOutQuad'
+  });
 }
 
-function renderRecentTable() { renderTable('recent-table-wrap', [...allClients].reverse().slice(0,5)); }
+function renderRecentTable() {
+  const recent = [...allClients].reverse().slice(0, 5);
+  renderTable('recent-table-wrap', recent, 5);
+}
 
 // ── FILTER ──
 function filterClients() {
@@ -665,108 +979,234 @@ function filterClients() {
   const status = document.getElementById('filter-status').value.toLowerCase();
   const size = document.getElementById('filter-size').value.toLowerCase();
   const ready = document.getElementById('filter-ready').value.toLowerCase();
+
   filteredClients = allClients.filter(c => {
-    return (!search || c.name.toLowerCase().includes(search) || (c.email||'').toLowerCase().includes(search) || (c.areas||'').toLowerCase().includes(search) || (c.phone||'').includes(search))
-      && (!status || c.status.toLowerCase()===status)
-      && (!size || (c.size||'').toLowerCase().includes(size))
-      && (!ready || (c.ready||'').toLowerCase().includes(ready));
+    const matchSearch = !search ||
+      c.name.toLowerCase().includes(search) ||
+      (c.email||'').toLowerCase().includes(search) ||
+      (c.areas||'').toLowerCase().includes(search) ||
+      (c.phone||'').includes(search);
+    const matchStatus = !status || c.status.toLowerCase() === status;
+    const matchSize = !size || (c.size||'').toLowerCase().includes(size);
+    const matchReady = !ready || (c.ready||'').toLowerCase().includes(ready);
+    return matchSearch && matchStatus && matchSize && matchReady;
   });
-  document.getElementById('filter-count').textContent = filteredClients.length+' of '+allClients.length+' clients';
+
+  document.getElementById('filter-count').textContent =
+    filteredClients.length + ' of ' + allClients.length + ' clients';
+
   renderTable('main-table-wrap', filteredClients);
 }
 
 // ── SORT ──
 function sortBy(col) {
-  if(sortCol===col){ sortDir*=-1; } else { sortCol=col; sortDir=1; }
-  filteredClients.sort((a,b)=>{ const av=(a[col]||'').toLowerCase(),bv=(b[col]||'').toLowerCase(); return av<bv?-sortDir:av>bv?sortDir:0; });
+  if (sortCol === col) { sortDir *= -1; }
+  else { sortCol = col; sortDir = 1; }
+  filteredClients.sort((a, b) => {
+    const av = (a[col]||'').toLowerCase();
+    const bv = (b[col]||'').toLowerCase();
+    return av < bv ? -sortDir : av > bv ? sortDir : 0;
+  });
   renderTable('main-table-wrap', filteredClients);
 }
 
 // ── MODAL ──
 function openModal(id) {
-  const c = allClients.find(x=>x.id===id); if(!c) return;
+  const c = allClients.find(x => x.id === id);
+  if (!c) return;
+
   const fields = [
-    {label:'Phone',value:c.phone},{label:'Email',value:c.email},
-    {label:'Desired Move-in',value:c.moveIn},{label:'Preferred Areas',value:c.areas},
-    {label:'Apt Size',value:c.size},{label:'Max Monthly Budget',value:c.budget},
-    {label:'Monthly Income',value:c.income},{label:'Ready Timeline',value:c.ready},
-    {label:'Desired Features',value:c.features},{label:'Credit/Rental History',value:c.history},
-    {label:'Follow-up Consent',value:c.followup},{label:'Referral Source',value:c.source},
-    {label:'Extra Notes from Form',value:c.notes,full:true},
+    { label: 'Phone', value: c.phone },
+    { label: 'Email', value: c.email },
+    { label: 'Desired Move-in', value: c.moveIn },
+    { label: 'Preferred Areas', value: c.areas },
+    { label: 'Apt Size', value: c.size },
+    { label: 'Max Monthly Budget', value: c.budget },
+    { label: 'Monthly Income', value: c.income },
+    { label: 'Ready Timeline', value: c.ready },
+    { label: 'Desired Features', value: c.features },
+    { label: 'Credit/Rental History', value: c.history },
+    { label: 'Follow-up Consent', value: c.followup },
+    { label: 'Referral Source', value: c.source },
+    { label: 'Extra Notes', value: c.notes, full: true },
   ];
-  const statuses = ['new','active','placed','hold'];
-  const slbls = {new:'New',active:'Active',placed:'Placed',hold:'On Hold'};
-  const savedNote = notesMap[c.id] || '';
-  const contactBtns = [
-    c.phone ? `<a href="tel:${c.phone}" class="btn" style="font-size:0.78rem;padding:7px 14px;text-decoration:none;">📞 Call</a>` : '',
-    c.phone ? `<a href="sms:${c.phone}" class="btn" style="font-size:0.78rem;padding:7px 14px;text-decoration:none;">💬 Text</a>` : '',
-    c.email ? `<a href="mailto:${c.email}" class="btn" style="font-size:0.78rem;padding:7px 14px;text-decoration:none;">✉️ Email</a>` : '',
-  ].filter(Boolean).join('');
+
+  const statuses = ['new', 'active', 'placed', 'hold'];
+  const statusLabels = { new: 'New', active: 'Active', placed: 'Placed', hold: 'On Hold' };
 
   document.getElementById('modal-body').innerHTML = `
     <div class="modal-name">${c.name}</div>
-    <div class="modal-sub">${c.areas||'DFW Area'} · ${c.size||'Size TBD'} · ${c.budget||'Budget TBD'}</div>
-    ${contactBtns ? `<div class="modal-contact-row">${contactBtns}</div>` : ''}
-    <div class="modal-grid" style="margin-top:20px;">
-      ${fields.map(f=>f.value?`<div class="modal-field${f.full?' full':''}""><div class="mf-label">${f.label}</div><div class="mf-value">${f.value}</div></div>`:'').join('')}
-      <div class="modal-field full">
-        <div class="mf-label">📝 Your Private Notes</div>
-        <textarea class="notes-area" id="note-${c.id}" placeholder="Add your own notes about this client…" oninput="saveNote('${c.id}')">${savedNote}</textarea>
-      </div>
+    <div class="modal-sub">${c.areas || 'DFW Area'} · ${c.size || 'Size TBD'} · ${c.budget || 'Budget TBD'}</div>
+    <div class="modal-grid">
+      ${fields.map(f => f.value ? `
+        <div class="modal-field${f.full ? ' full' : ''}">
+          <div class="mf-label">${f.label}</div>
+          <div class="mf-value">${f.value}</div>
+        </div>
+      ` : '').join('')}
     </div>
     <div class="modal-status-row">
       <label>Status:</label>
-      ${statuses.map(s=>`<button class="status-btn ${c.status===s?'active-status':''}" onclick="setStatus('${c.id}','${s}',this)">${slbls[s]}</button>`).join('')}
+      ${statuses.map(s => `
+        <button class="status-btn ${c.status===s?'active-status':''}"
+          onclick="setStatus('${c.id}','${s}',this)">
+          ${statusLabels[s]}
+        </button>
+      `).join('')}
     </div>
   `;
+
   document.getElementById('modal-overlay').classList.add('open');
-  anime({ targets:'#modal-content', scale:[0.95,1], opacity:[0,1], duration:280, easing:'easeOutQuad' });
+  anime({
+    targets: '#modal-content',
+    scale: [0.95, 1], opacity: [0, 1],
+    duration: 280, easing: 'easeOutQuad'
+  });
 }
 
-function saveNote(id) { notesMap[id] = document.getElementById('note-'+id).value; }
-
 function setStatus(id, status, btn) {
-  const c = allClients.find(x=>x.id===id); if(!c) return;
-  c.status = status; statusMap[id] = status;
-  btn.parentElement.querySelectorAll('.status-btn').forEach(b=>b.classList.remove('active-status'));
+  const client = allClients.find(c => c.id === id);
+  if (!client) return;
+  client.status = status;
+  statusMap[id] = status;
+  btn.parentElement.querySelectorAll('.status-btn').forEach(b => b.classList.remove('active-status'));
   btn.classList.add('active-status');
-  updateStats(); filterClients();
+  updateStats();
+  filterClients();
 }
 
 function closeModal(e) {
-  if(e && e.target!==document.getElementById('modal-overlay')) return;
+  if (e && e.target !== document.getElementById('modal-overlay')) return;
   document.getElementById('modal-overlay').classList.remove('open');
 }
 
 // ── NAV ──
 function showPage(name) {
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  document.getElementById('page-'+name).classList.add('active');
-  const navMap={dashboard:0,clients:1,import:2,sheets:3,form:4};
-  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const navMap = { dashboard: 0, clients: 1, import: 2, form: 3 };
   document.querySelectorAll('.nav-item')[navMap[name]].classList.add('active');
-  anime({ targets:'#page-'+name, opacity:[0,1], translateY:[10,0], duration:350, easing:'easeOutQuad' });
+
+  anime({
+    targets: '#page-' + name,
+    opacity: [0, 1], translateY: [10, 0],
+    duration: 350, easing: 'easeOutQuad'
+  });
 }
 
-function copyFormLink() { navigator.clipboard.writeText(FORM_URL).then(()=>alert('✅ Form link copied!')); }
+function copyFormLink() {
+  navigator.clipboard.writeText('https://docs.google.com/forms/d/e/1FAIpQLSchE21k_hR4FGndZRGFhyCq5nKvoStmbuoLqCUvdDQ52njFXA/viewform')
+    .then(() => alert('✅ Form link copied!'));
+}
 
-// ── LOADER ──
-function startLoader() {
-  const tl = anime.timeline({ easing:'easeOutQuad' });
+// ── DFW LEAFLET MAP ──
+let dfwMap = null;
+let mapMarkers = {};
+
+const DFW_CITIES = [
+  { key:'dallas',       name:'Dallas',        lat:32.7767, lng:-96.7970, major:true  },
+  { key:'fortworth',    name:'Fort Worth',     lat:32.7555, lng:-97.3308, major:true  },
+  { key:'arlington',    name:'Arlington',      lat:32.7357, lng:-97.1081, major:false },
+  { key:'plano',        name:'Plano',          lat:33.0198, lng:-96.6989, major:false },
+  { key:'irving',       name:'Irving',         lat:32.8140, lng:-96.9489, major:false },
+  { key:'garland',      name:'Garland',        lat:32.9126, lng:-96.6389, major:false },
+  { key:'grandprairie', name:'Grand Prairie',  lat:32.7460, lng:-96.9978, major:false },
+  { key:'mesquite',     name:'Mesquite',       lat:32.7668, lng:-96.5992, major:false },
+  { key:'frisco',       name:'Frisco',         lat:33.1507, lng:-96.8236, major:false },
+  { key:'denton',       name:'Denton',         lat:33.2148, lng:-97.1331, major:false },
+  { key:'mckinney',     name:'McKinney',       lat:33.1972, lng:-96.6155, major:false },
+  { key:'carrollton',   name:'Carrollton',     lat:32.9537, lng:-96.8903, major:false },
+  { key:'richardson',   name:'Richardson',     lat:32.9483, lng:-96.7299, major:false },
+  { key:'desoto',       name:'DeSoto',         lat:32.5898, lng:-96.8573, major:false },
+  { key:'mansfield',    name:'Mansfield',      lat:32.5632, lng:-97.1417, major:false },
+  { key:'grapevine',    name:'Grapevine',      lat:32.9343, lng:-97.0781, major:false },
+  { key:'cedarhill',    name:'Cedar Hill',     lat:32.5885, lng:-96.9561, major:false },
+  { key:'lewisville',   name:'Lewisville',     lat:33.0462, lng:-96.9942, major:false },
+  { key:'allen',        name:'Allen',          lat:33.1032, lng:-96.6706, major:false },
+  { key:'thecolony',    name:'The Colony',     lat:33.0862, lng:-96.8836, major:false },
+  { key:'euless',       name:'Euless',         lat:32.8371, lng:-97.0819, major:false },
+  { key:'flowermound',  name:'Flower Mound',   lat:33.0146, lng:-97.0969, major:false },
+  { key:'rowlett',      name:'Rowlett',        lat:32.9029, lng:-96.5639, major:false },
+  { key:'waxahachie',   name:'Waxahachie',     lat:32.3868, lng:-96.8489, major:false },
+  { key:'midlothian',   name:'Midlothian',     lat:32.4821, lng:-97.0053, major:false },
+];
+
+function initDFWMap() {
+  if (dfwMap) return;
+  dfwMap = L.map('dfw-map', {
+    center: [32.90, -97.05],
+    zoom: 10,
+    zoomControl: true,
+    attributionControl: false
+  });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    subdomains: 'abcd', maxZoom: 19
+  }).addTo(dfwMap);
+  placeCityDots({});
+}
+
+function placeCityDots(counts) {
+  if (!dfwMap) return;
+  const max = Math.max(...Object.values(counts), 1);
+  Object.values(mapMarkers).forEach(m => dfwMap.removeLayer(m));
+  mapMarkers = {};
+  DFW_CITIES.forEach(city => {
+    const count = counts[city.key] || 0;
+    const intensity = count / max;
+    const size = city.major ? 14 : Math.max(8, 8 + intensity * 14);
+    const color = count > 0
+      ? (intensity > 0.6 ? '#FFD700' : intensity > 0.3 ? '#C4922A' : '#8B6418')
+      : (city.major ? '#C4922A' : '#6B4C2A');
+    const icon = L.divIcon({
+      className: '',
+      html: `<div class="city-dot" style="width:${size}px;height:${size}px;background:${color};"></div>`,
+      iconSize: [size, size], iconAnchor: [size/2, size/2]
+    });
+    mapMarkers[city.key] = L.marker([city.lat, city.lng], { icon })
+      .addTo(dfwMap)
+      .bindPopup(`<div class="popup-city">${city.name}</div><div class="popup-sub">DFW Metroplex · North Texas</div><div class="popup-count">${count > 0 ? count + ' client' + (count===1?'':'s') + ' looking here' : 'No clients yet'}</div>`);
+  });
+}
+
+function updateMapCounts() {
+  if (!dfwMap) return;
+  const counts = {};
+  for (const c of allClients) {
+    const areaStr = (c.areas || '').toLowerCase();
+    for (const city of DFW_CITIES) {
+      if (areaStr.includes(city.name.toLowerCase()) || areaStr.includes(city.key)) {
+        counts[city.key] = (counts[city.key] || 0) + 1;
+        break;
+      }
+    }
+  }
+  placeCityDots(counts);
+  const total = Object.values(counts).reduce((a,b)=>a+b,0);
+  document.getElementById('map-client-count').textContent = total + ' clients mapped across DFW';
+  if (total > 0) document.getElementById('map-live-tag').style.display = 'block';
+}
+
+// ── LOADER ANIMATION ──
+window.addEventListener('load', () => {
+  const tl = anime.timeline({ easing: 'easeOutQuad' });
   tl
-    .add({ targets:'.loader-logo', opacity:[0,1], translateY:[20,0], duration:600 })
-    .add({ targets:'.loader-sub', opacity:[0,1], duration:500 }, '-=200')
-    .add({ targets:'#lbar', width:['0%','100%'], duration:900, easing:'easeInOutQuart' }, '-=100')
-    .add({ targets:'#loader', opacity:[1,0], duration:500,
-      complete:()=>{
-        document.getElementById('loader').style.display='none';
-        document.getElementById('app').style.opacity=1;
-        anime({ targets:'#app', opacity:[0,1], duration:500 });
-        anime({ targets:'.stat-card', opacity:[0,1], translateY:[20,0], delay:anime.stagger(80), duration:500, easing:'easeOutQuart' });
-        anime({ targets:'.nav-item', opacity:[0,1], translateX:[-12,0], delay:anime.stagger(60,{start:200}), duration:400 });
+    .add({ targets: '.loader-logo', opacity: [0, 1], translateY: [20, 0], duration: 600 })
+    .add({ targets: '.loader-sub', opacity: [0, 1], duration: 500 }, '-=200')
+    .add({ targets: '#lbar', width: ['0%', '100%'], duration: 900, easing: 'easeInOutQuart' }, '-=100')
+    .add({
+      targets: '#loader',
+      opacity: [1, 0], duration: 500,
+      complete: () => {
+        document.getElementById('loader').style.display = 'none';
+        document.getElementById('app').style.opacity = 1;
+        anime({ targets: '#app', opacity: [0, 1], duration: 500, easing: 'easeOutQuad' });
+        anime({ targets: '.stat-card', opacity: [0, 1], translateY: [20, 0], delay: anime.stagger(80), duration: 500, easing: 'easeOutQuart' });
+        anime({ targets: '.nav-item', opacity: [0, 1], translateX: [-12, 0], delay: anime.stagger(60, {start: 200}), duration: 400 });
+        setTimeout(initDFWMap, 800);
       }
     }, '+=200');
-}
+});
 </script>
 </body>
 </html>
