@@ -482,6 +482,57 @@
     .modal-grid { grid-template-columns: 1fr; }
   }
 
+  @media (max-width: 600px) {
+    .sidebar { display: none; }
+    .main { margin-left: 0 !important; padding: 16px 14px 90px !important; }
+    .stats-grid { grid-template-columns: repeat(2,1fr); gap:10px; }
+    .topbar { flex-direction: column; align-items: flex-start; gap:10px; margin-bottom:18px; }
+    .topbar-right { width:100%; flex-wrap:wrap; gap:8px; }
+    .page-title { font-size:1.5rem; }
+    #dfw-map { height:300px !important; }
+    table { font-size:0.73rem; }
+    td, th { padding:9px 8px; }
+    .modal { padding:20px 16px; }
+    .modal-grid { grid-template-columns:1fr; }
+  }
+
+  /* ── MOBILE BOTTOM NAV ── */
+  .mobile-nav {
+    display: none;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: rgba(17,16,9,0.97);
+    border-top: 1px solid var(--border2);
+    z-index: 300;
+    backdrop-filter: blur(12px);
+  }
+  .mobile-nav-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    padding: 8px 4px 20px;
+  }
+  .mobile-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    cursor: pointer;
+    padding: 6px 10px;
+    border-radius: 10px;
+    transition: all 0.2s;
+    color: var(--text3);
+    flex: 1;
+    border: none;
+    background: transparent;
+  }
+  .mobile-nav-item.active { color: var(--gold2); }
+  .mobile-nav-item .mn-icon { font-size: 1.25rem; line-height: 1; }
+  .mobile-nav-item .mn-label { font-size: 0.58rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
+  @media (max-width: 600px) {
+    .mobile-nav { display: block; }
+  }
+
   /* Leaflet map styling */
   #dfw-map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(1.05) contrast(1.2) saturate(0.15); }
   #dfw-map .leaflet-control-zoom a { background: var(--card2); color: var(--gold2); border-color: var(--border2); }
@@ -529,7 +580,7 @@
       </div>
       <div class="nav-item" onclick="showPage('import')">
         <span class="nav-icon">📥</span>
-        <span>Import Excel</span>
+        <span>Import Google Sheets</span>
       </div>
       <div class="nav-item" onclick="showPage('form')">
         <span class="nav-icon">📋</span>
@@ -550,7 +601,7 @@
           <div class="page-sub">Here's your DFW client overview</div>
         </div>
         <div class="topbar-right">
-          <button class="btn" onclick="showPage('import')">📥 Import Excel</button>
+          <button class="btn" onclick="showPage('import')">📥 Import Google Sheets</button>
           <button class="btn btn-gold" onclick="window.open('https://docs.google.com/forms/d/e/1FAIpQLSchE21k_hR4FGndZRGFhyCq5nKvoStmbuoLqCUvdDQ52njFXA/viewform','_blank')">+ New Client Form</button>
         </div>
       </div>
@@ -559,7 +610,7 @@
         <div class="stat-card">
           <div class="stat-label">Total Clients</div>
           <div class="stat-value" id="stat-total">0</div>
-          <div class="stat-change" id="stat-total-sub">Load Excel to populate</div>
+          <div class="stat-change" id="stat-total-sub">Import Sheets to populate</div>
           <div class="stat-icon">👥</div>
         </div>
         <div class="stat-card">
@@ -618,7 +669,7 @@
           <div class="page-sub">All DFW apartment seekers</div>
         </div>
         <div class="topbar-right">
-          <button class="btn btn-gold" onclick="showPage('import')">📥 Import Excel</button>
+          <button class="btn btn-gold" onclick="showPage('import')">📥 Import Google Sheets</button>
         </div>
       </div>
 
@@ -654,7 +705,7 @@
       <div class="table-wrap" id="main-table-wrap">
         <div class="no-data">
           <div class="no-icon">📥</div>
-          <div>Import your Excel file to see clients here</div>
+          <div>Import your Google Sheets file to see clients here</div>
           <button class="btn btn-gold" onclick="showPage('import')" style="margin-top:16px;">Import Now</button>
         </div>
       </div>
@@ -664,8 +715,8 @@
     <div class="page" id="page-import">
       <div class="topbar">
         <div>
-          <div class="page-title">Import Excel</div>
-          <div class="page-sub">Upload your Google Form responses Excel file</div>
+          <div class="page-title">Import Google Sheets</div>
+          <div class="page-sub">Upload your Google Sheets export</div>
         </div>
       </div>
 
@@ -675,8 +726,8 @@
            ondragleave="handleDragLeave(event)"
            ondrop="handleDrop(event)">
         <div class="upload-icon">📊</div>
-        <div class="upload-title">Drop your Excel file here</div>
-        <div class="upload-hint">or click to browse · Supports .xlsx, .xls, .csv</div>
+        <div class="upload-title">Drop your Google Sheets file here</div>
+        <div class="upload-hint">or click to browse · Supports .xlsx, .csv (Download from Google Sheets)</div>
         <input type="file" id="file-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleFile(event)">
       </div>
 
@@ -732,7 +783,7 @@
             </div>
           </div>
           <div style="font-size:0.78rem; color:var(--text3);">
-            Responses automatically export to your Google Sheet, then download as Excel to import here.
+            Responses automatically export to your Google Sheet, then download as .xlsx to import here.
           </div>
         </div>
       </div>
@@ -1087,12 +1138,11 @@ function showPage(name) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   const navMap = { dashboard: 0, clients: 1, import: 2, form: 3 };
   document.querySelectorAll('.nav-item')[navMap[name]].classList.add('active');
-
-  anime({
-    targets: '#page-' + name,
-    opacity: [0, 1], translateY: [10, 0],
-    duration: 350, easing: 'easeOutQuad'
-  });
+  // Sync mobile bottom nav
+  document.querySelectorAll('.mobile-nav-item').forEach(n => n.classList.remove('active'));
+  const mobileBtn = document.getElementById('mnav-' + name);
+  if (mobileBtn) mobileBtn.classList.add('active');
+  anime({ targets: '#page-' + name, opacity: [0, 1], translateY: [10, 0], duration: 350, easing: 'easeOutQuad' });
 }
 
 function copyFormLink() {
@@ -1208,5 +1258,31 @@ window.addEventListener('load', () => {
     }, '+=200');
 });
 </script>
+<!-- MOBILE BOTTOM NAV -->
+<div class="mobile-nav">
+  <div class="mobile-nav-inner">
+    <button class="mobile-nav-item active" id="mnav-dashboard" onclick="showPage('dashboard')">
+      <span class="mn-icon">📊</span>
+      <span class="mn-label">Home</span>
+    </button>
+    <button class="mobile-nav-item" id="mnav-clients" onclick="showPage('clients')">
+      <span class="mn-icon">👥</span>
+      <span class="mn-label">Clients</span>
+    </button>
+    <button class="mobile-nav-item" id="mnav-import" onclick="showPage('import')">
+      <span class="mn-icon">📥</span>
+      <span class="mn-label">Import</span>
+    </button>
+    <button class="mobile-nav-item" id="mnav-sheets" onclick="showPage('sheets')">
+      <span class="mn-icon">🔗</span>
+      <span class="mn-label">Live</span>
+    </button>
+    <button class="mobile-nav-item" id="mnav-form" onclick="showPage('form')">
+      <span class="mn-icon">📋</span>
+      <span class="mn-label">Form</span>
+    </button>
+  </div>
+</div>
+
 </body>
 </html>
