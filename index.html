@@ -889,6 +889,54 @@ let sortCol = null;
 let sortDir = 1;
 const statusMap = {};
 
+// ── PERSISTENCE HELPERS ──
+const LS_CLIENTS = 'dra_clients';
+const LS_NOTES   = 'dra_client_notes';
+
+function saveClients() {
+  try {
+    localStorage.setItem(LS_CLIENTS, JSON.stringify(allClients));
+  } catch(e) { console.warn('localStorage full:', e); }
+}
+
+function loadClients() {
+  try {
+    const raw = localStorage.getItem(LS_CLIENTS);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) return false;
+    allClients = parsed;
+    filteredClients = [...allClients];
+    return true;
+  } catch(e) { return false; }
+}
+
+// Notes are stored separately so a fresh import doesn't wipe them
+function getNotes(clientId) {
+  try {
+    const all = JSON.parse(localStorage.getItem(LS_NOTES) || '{}');
+    return all[clientId] || '';
+  } catch(e) { return ''; }
+}
+
+function saveNote(clientId, text) {
+  try {
+    const all = JSON.parse(localStorage.getItem(LS_NOTES) || '{}');
+    all[clientId] = text;
+    localStorage.setItem(LS_NOTES, JSON.stringify(all));
+    // Mirror onto the client object
+    const c = allClients.find(x => x.id === clientId);
+    if (c) c._note = text;
+    // Flash "Saved" indicator
+    const indicator = document.getElementById('note-saved-' + clientId);
+    if (indicator) {
+      indicator.style.opacity = '1';
+      clearTimeout(indicator._t);
+      indicator._t = setTimeout(() => { indicator.style.opacity = '0'; }, 1800);
+    }
+  } catch(e) { console.warn('Note save error:', e); }
+}
+
 // ── FIELD MAPPING ──
 const fieldMap = {
   name: ['full name', 'name', 'client name'],
@@ -933,6 +981,15 @@ function parseClients(rows) {
       return idx >= 0 ? String(row[idx] || '').trim() : '';
     };
     const id = 'c' + i;
+    // Restore status from previous import if available
+    let savedStatus = statusMap[id];
+    if (!savedStatus) {
+      try {
+        const prev = JSON.parse(localStorage.getItem(LS_CLIENTS) || '[]');
+        const match = prev.find(p => p.id === id);
+        savedStatus = match ? match.status : 'new';
+      } catch(e) { savedStatus = 'new'; }
+    }
     return {
       id, name: get('name') || 'Unknown',
       phone: get('phone'), email: get('email'),
@@ -942,7 +999,8 @@ function parseClients(rows) {
       ready: get('ready'), history: get('history'),
       notes: get('notes'), followup: get('followup'),
       source: get('source'),
-      status: statusMap[id] || 'new'
+      status: savedStatus,
+      _note: getNotes(id)
     };
   }).filter(c => c.name && c.name !== 'Unknown');
 }
@@ -977,6 +1035,7 @@ function processFile(file) {
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
       allClients = parseClients(rows);
       filteredClients = [...allClients];
+      saveClients();
       status.innerHTML = `<span style="color:var(--green);">✅ Loaded ${allClients.length} clients from "${file.name}"</span>`;
       updateStats();
       renderTable('main-table-wrap', filteredClients);
@@ -1162,11 +1221,12 @@ function openModal(id) {
     { label: 'Credit/Rental History', value: c.history },
     { label: 'Follow-up Consent', value: c.followup },
     { label: 'Referral Source', value: c.source },
-    { label: 'Extra Notes', value: c.notes, full: true },
+    { label: 'Form Notes', value: c.notes, full: true },
   ];
 
   const statuses = ['new', 'active', 'placed', 'hold'];
   const statusLabels = { new: 'New', active: 'Active', placed: 'Placed', hold: 'On Hold' };
+  const currentNote = getNotes(c.id);
 
   document.getElementById('modal-body').innerHTML = `
     <div class="modal-name">${c.name}</div>
@@ -1187,6 +1247,17 @@ function openModal(id) {
           ${statusLabels[s]}
         </button>
       `).join('')}
+    </div>
+    <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border);">
+      <div style="font-size:0.7rem;color:var(--text3);text-transform:uppercase;letter-spacing:0.14em;margin-bottom:8px;">📝 My Notes</div>
+      <textarea id="client-note-${c.id}"
+        placeholder="Add private notes about this client — follow-up reminders, apartment feedback, what they told you on the phone…"
+        oninput="saveNote('${c.id}', this.value)"
+        style="width:100%;min-height:100px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:0.83rem;font-family:'DM Sans',sans-serif;resize:vertical;outline:none;transition:border-color 0.2s;line-height:1.5;"
+        onfocus="this.style.borderColor='var(--gold3)'"
+        onblur="this.style.borderColor='var(--border)'"
+      >${currentNote}</textarea>
+      <div id="note-saved-${c.id}" style="font-size:0.7rem;color:var(--green);margin-top:4px;opacity:0;transition:opacity 0.3s;">✓ Saved</div>
     </div>
   `;
 
@@ -1217,6 +1288,7 @@ function setStatus(id, status, btn) {
   statusMap[id] = status;
   btn.parentElement.querySelectorAll('.status-btn').forEach(b => b.classList.remove('active-status'));
   btn.classList.add('active-status');
+  saveClients();
   updateStats();
   filterClients();
 }
@@ -1767,7 +1839,25 @@ window.addEventListener('load', () => {
         });
 
         setTimeout(initDFWMap, 800);
-        setTimeout(() => { renderCalendar(); renderTodos(); renderWeekSchedule(); }, 400);
+        setTimeout(() => {
+          renderCalendar();
+          renderTodos();
+          renderWeekSchedule();
+          // ── AUTO-LOAD persisted clients ──
+          if (loadClients()) {
+            updateStats();
+            renderTable('main-table-wrap', filteredClients);
+            renderRecentTable();
+            updateMapCounts();
+            // Show a subtle banner so she knows data was restored
+            const banner = document.createElement('div');
+            banner.style.cssText = 'position:fixed;bottom:90px;right:20px;background:var(--card);border:1px solid var(--gold3);border-radius:10px;padding:12px 18px;font-size:0.8rem;color:var(--gold2);z-index:999;box-shadow:0 4px 20px rgba(0,0,0,0.5);';
+            banner.innerHTML = `✅ ${allClients.length} clients restored`;
+            document.body.appendChild(banner);
+            anime({ targets: banner, opacity:[0,1], translateY:[20,0], duration:400, easing:'easeOutBack' });
+            setTimeout(() => anime({ targets: banner, opacity:[1,0], translateY:[0,20], duration:300, easing:'easeInQuad', complete:()=>banner.remove() }), 3000);
+          }
+        }, 400);
       }
     }, '+=200');
 });
